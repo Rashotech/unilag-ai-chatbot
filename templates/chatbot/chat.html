@@ -1,0 +1,602 @@
+{% extends 'base.html' %}
+
+{% block title %}Chat - UNILAG University Assistant{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+        <!-- Chat Header -->
+        <div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold flex items-center">
+                        <i class="fas fa-robot mr-2"></i>
+                        UNILAG University Assistant
+                    </h2>
+                    <p class="text-sm text-blue-100">Ask me anything about university policies, procedures, and information!</p>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="escalation-btn" class="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded text-sm transition duration-200">
+                        <i class="fas fa-user mr-1"></i>Human Help
+                    </button>
+                    <button id="clear-chat-btn" class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition duration-200">
+                        <i class="fas fa-trash mr-1"></i>Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Popular Topics -->
+        {% if popular_topics and not messages %}
+        <div class="bg-gray-50 border-b p-4">
+            <h3 class="text-sm font-semibold text-gray-700 mb-2">Popular Topics:</h3>
+            <div class="flex flex-wrap gap-2">
+                {% for topic, count in popular_topics %}
+                <button class="topic-suggestion bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1 rounded-full text-sm transition duration-200"
+                        data-topic="What is {{ topic }}?">
+                    {{ topic }} ({{ count }})
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Chat Messages -->
+        <div class="h-96 overflow-y-auto p-4 space-y-4" id="chat-messages">
+            {% if not messages %}
+            <!-- Welcome message -->
+            <div class="flex items-start space-x-3">
+                <div class="flex-shrink-0">
+                                        <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                        <i class="fas fa-robot text-white text-sm"></i>
+                    </div>
+                </div>
+                <div class="flex-1">
+                    <div class="bg-gray-100 rounded-lg p-3 max-w-md">
+                        <p class="text-gray-800">
+                            👋 Welcome to UNILAG University Assistant! I'm here to help you with:
+                        </p>
+                        <ul class="mt-2 text-sm text-gray-700 list-disc list-inside">
+                            <li>Course registration and requirements</li>
+                            <li>Academic policies and procedures</li>
+                            <li>Campus services and facilities</li>
+                            <li>Student handbook information</li>
+                            <li>General university inquiries</li>
+                        </ul>
+                        <p class="mt-2 text-sm text-gray-600">How can I assist you today?</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% for message in messages %}
+                {% if message.message_type == 'user' %}
+                <div class="flex items-start space-x-3 justify-end">
+                    <div class="flex-1 max-w-md">
+                        <div class="bg-blue-600 text-white rounded-lg p-3">
+                            <p>{{ message.content }}</p>
+                            <span class="text-xs text-blue-100 block mt-1">
+                                {{ message.timestamp|date:"H:i" }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                            <i class="fas fa-user text-white text-sm"></i>
+                        </div>
+                    </div>
+                </div>
+                {% elif message.message_type == 'bot' %}
+                <div class="flex items-start space-x-3">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+                            <i class="fas fa-robot text-white text-sm"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1 max-w-md">
+                        <div class="bg-gray-100 rounded-lg p-3">
+                            <div class="prose prose-sm max-w-none">
+                                {{ message.content|linebreaks }}
+                            </div>
+
+                            <!-- Sources -->
+                            {% if message.sources.exists %}
+                            <div class="mt-3 pt-2 border-t border-gray-200">
+                                <p class="text-xs text-gray-600 font-semibold mb-1">
+                                    <i class="fas fa-book mr-1"></i>Sources:
+                                </p>
+                                {% for source in message.sources.all %}
+                                <div class="text-xs text-gray-500 flex items-center">
+                                    <i class="fas fa-file-alt mr-1"></i>
+                                    {{ source.document.title }}
+                                    {% if source.relevance_score %}
+                                        <span class="ml-1 text-green-600">({{ source.relevance_score|floatformat:2 }})</span>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            <!-- Follow-up questions -->
+                            {% if message.metadata.followup_questions %}
+                            <div class="mt-3 pt-2 border-t border-gray-200">
+                                <p class="text-xs text-gray-600 font-semibold mb-1">Related questions:</p>
+                                {% for question in message.metadata.followup_questions %}
+                                <button class="followup-question text-xs text-blue-600 hover:text-blue-800 block"
+                                        data-question="{{ question }}">
+                                    • {{ question }}
+                                </button>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+
+                            <!-- Rating and timestamp -->
+                            <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-200">
+                                <div class="flex items-center space-x-2">
+                                    <button class="rate-btn text-sm hover:bg-green-200 p-1 rounded transition duration-200
+                                        {% if message.rating == 2 %}bg-green-200 text-green-800{% else %}text-gray-500{% endif %}"
+                                            data-message-id="{{ message.id }}" data-rating="2">
+                                        <i class="fas fa-thumbs-up"></i>
+                                    </button>
+                                    <button class="rate-btn text-sm hover:bg-red-200 p-1 rounded transition duration-200
+                                        {% if message.rating == 1 %}bg-red-200 text-red-800{% else %}text-gray-500{% endif %}"
+                                            data-message-id="{{ message.id }}" data-rating="1">
+                                        <i class="fas fa-thumbs-down"></i>
+                                    </button>
+                                </div>
+                                <span class="text-xs text-gray-500">
+                                    {{ message.timestamp|date:"H:i" }}
+                                    {% if message.response_time %}
+                                        • {{ message.response_time|floatformat:1 }}s
+                                    {% endif %}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <!-- Typing Indicator -->
+        <div class="typing-indicator hidden px-4 py-2">
+            <div class="flex items-center space-x-2">
+                <div class="flex-shrink-0">
+                    <div class="w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center">
+                        <i class="fas fa-robot text-white text-xs"></i>
+                    </div>
+                </div>
+                <div class="flex space-x-1">
+                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                </div>
+                <span class="text-sm text-gray-500">AI is thinking...</span>
+            </div>
+        </div>
+
+        <!-- Chat Input -->
+        <div class="border-t p-4">
+            <form id="chat-form" class="flex space-x-3">
+                {% csrf_token %}
+                <div class="flex-1">
+                    <input type="text"
+                           id="message-input"
+                           placeholder="Ask me anything about MIT University..."
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                           maxlength="500">
+                    <div class="text-xs text-gray-500 mt-1">
+                        <span id="char-count">0</span>/500 characters
+                    </div>
+                </div>
+                <button type="submit"
+                        id="send-btn"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition duration-200 flex items-center">
+                    <i class="fas fa-paper-plane mr-2"></i>Send
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="font-semibold text-gray-800 mb-2">
+                <i class="fas fa-clock text-blue-600 mr-2"></i>Quick Access
+            </h3>
+            <div class="space-y-2 text-sm">
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="What are the library hours?">Library Hours</button>
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="How do I register for courses?">Course Registration</button>
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="What is the grading system?">Grading System</button>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="font-semibold text-gray-800 mb-2">
+                <i class="fas fa-info-circle text-green-600 mr-2"></i>Help Topics
+            </h3>
+            <div class="space-y-2 text-sm">
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="Tell me about academic policies">Academic Policies</button>
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="What support services are available?">Student Support</button>
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="How do I contact financial aid?">Financial Aid</button>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="font-semibold text-gray-800 mb-2">
+                <i class="fas fa-tools text-purple-600 mr-2"></i>Tools
+            </h3>
+            <div class="space-y-2 text-sm">
+                {% if user.is_staff %}
+                <a href="{% url 'admin_dashboard' %}"
+                   class="block text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-chart-bar mr-1"></i>Admin Dashboard
+                </a>
+                <a href="{% url 'document_management' %}"
+                   class="block text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-upload mr-1"></i>Manage Documents
+                </a>
+                {% endif %}
+                <button class="export-chat w-full text-left text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-download mr-1"></i>Export Chat
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Escalation Modal -->
+<div id="escalation-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">
+            <i class="fas fa-user-headset text-blue-600 mr-2"></i>Request Human Assistance
+        </h3>
+        <p class="text-gray-600 mb-4">
+            If the AI assistant couldn't help you adequately, you can request assistance from our human support team.
+        </p>
+        <div class="flex justify-end space-x-3">
+            <button id="cancel-escalation" class="px-4 py-2 text-gray-600 hover:text-gray-800">Cancel</button>
+            <button id="confirm-escalation" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                Request Help
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chatMessages = document.getElementById('chat-messages');
+    const chatForm = document.getElementById('chat-form');
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    const typingIndicator = document.querySelector('.typing-indicator');
+    const charCount = document.getElementById('char-count');
+    const escalationBtn = document.getElementById('escalation-btn');
+    const escalationModal = document.getElementById('escalation-modal');
+    const cancelEscalation = document.getElementById('cancel-escalation');
+    const confirmEscalation = document.getElementById('confirm-escalation');
+    const clearChatBtn = document.getElementById('clear-chat-btn');
+
+    // Character counter
+    messageInput.addEventListener('input', function() {
+        charCount.textContent = this.value.length;
+    });
+
+    // Auto-scroll to bottom
+    function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    scrollToBottom();
+
+    // Send message
+    chatForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const message = messageInput.value.trim();
+        if (!message) return;
+
+        sendMessage(message);
+    });
+
+    // Quick questions
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('quick-question') ||
+            e.target.classList.contains('topic-suggestion') ||
+            e.target.classList.contains('followup-question')) {
+            const question = e.target.dataset.question || e.target.dataset.topic;
+            if (question) {
+                messageInput.value = question;
+                sendMessage(question);
+            }
+        }
+    });
+
+    function sendMessage(message) {
+        // Disable input
+        messageInput.disabled = true;
+        sendBtn.disabled = true;
+
+        // Add user message to chat
+        addUserMessage(message);
+
+        // Clear input
+        messageInput.value = '';
+        charCount.textContent = '0';
+
+        // Show typing indicator
+        typingIndicator.classList.remove('hidden');
+        scrollToBottom();
+
+        // Send to server
+        fetch('{% url "send_message" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({ message: message })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Hide typing indicator
+            typingIndicator.classList.add('hidden');
+
+            if (data.success) {
+                addBotMessage(data);
+            } else {
+                addBotMessage({
+                    response: data.error || 'Sorry, I encountered an error. Please try again.',
+                    error: true
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            typingIndicator.classList.add('hidden');
+            addBotMessage({
+                response: 'Sorry, I encountered a network error. Please check your connection and try again.',
+                error: true
+            });
+        })
+        .finally(() => {
+            // Re-enable input
+            messageInput.disabled = false;
+            sendBtn.disabled = false;
+            messageInput.focus();
+        });
+    }
+
+    function addUserMessage(message) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'flex items-start space-x-3 justify-end';
+        messageDiv.innerHTML = `
+            <div class="flex-1 max-w-md">
+                <div class="bg-blue-600 text-white rounded-lg p-3">
+                    <p>${escapeHtml(message)}</p>
+                    <span class="text-xs text-blue-100 block mt-1">${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}</span>
+                </div>
+            </div>
+            <div class="flex-shrink-0">
+                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                    <i class="fas fa-user text-white text-sm"></i>
+                </div>
+            </div>
+        `;
+        chatMessages.appendChild(messageDiv);
+        scrollToBottom();
+    }
+
+    function addBotMessage(data) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'flex items-start space-x-3';
+
+        let sourcesHtml = '';
+        if (data.sources && data.sources.length > 0) {
+            sourcesHtml = `
+                <div class="mt-3 pt-2 border-t border-gray-200">
+                    <p class="text-xs text-gray-600 font-semibold mb-1">
+                        <i class="fas fa-book mr-1"></i>Sources:
+                    </p>
+                    ${data.sources.map(source => `
+                        <div class="text-xs text-gray-500 flex items-center">
+                            <i class="fas fa-file-alt mr-1"></i>
+                            ${source.title}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        let followupHtml = '';
+        if (data.followup_questions && data.followup_questions.length > 0) {
+            followupHtml = `
+                <div class="mt-3 pt-2 border-t border-gray-200">
+                    <p class="text-xs text-gray-600 font-semibold mb-1">Related questions:</p>
+                    ${data.followup_questions.map(question => `
+                        <button class="followup-question text-xs text-blue-600 hover:text-blue-800 block"
+                                data-question="${escapeHtml(question)}">
+                            • ${escapeHtml(question)}
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        const bgColor = data.error ? 'bg-red-50' : 'bg-gray-100';
+        const response = data.response.replace(/\n/g, '<br>');
+
+        messageDiv.innerHTML = `
+            <div class="flex-shrink-0">
+                <div class="w-8 h-8 ${data.error ? 'bg-red-600' : 'bg-green-600'} rounded-full flex items-center justify-center">
+                    <i class="fas fa-robot text-white text-sm"></i>
+                </div>
+            </div>
+            <div class="flex-1 max-w-md">
+                <div class="${bgColor} rounded-lg p-3">
+                    <div class="prose prose-sm max-w-none">
+                        <p>${response}</p>
+                    </div>
+                    ${sourcesHtml}
+                    ${followupHtml}
+                    <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-200">
+                        <div class="flex items-center space-x-2">
+                            ${!data.error && data.message_id ? `
+                                <button class="rate-btn text-sm hover:bg-green-200 p-1 rounded transition duration-200 text-gray-500"
+                                        data-message-id="${data.message_id}" data-rating="2">
+                                    <i class="fas fa-thumbs-up"></i>
+                                </button>
+                                <button class="rate-btn text-sm hover:bg-red-200 p-1 rounded transition duration-200 text-gray-500"
+                                        data-message-id="${data.message_id}" data-rating="1">
+                                    <i class="fas fa-thumbs-down"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                        <span class="text-xs text-gray-500">
+                            ${new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'})}
+                            ${data.response_time ? `• ${data.response_time}s` : ''}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        chatMessages.appendChild(messageDiv);
+        scrollToBottom();
+    }
+
+    // Rating functionality
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('rate-btn') || e.target.closest('.rate-btn')) {
+            const btn = e.target.classList.contains('rate-btn') ? e.target : e.target.closest('.rate-btn');
+            const messageId = btn.dataset.messageId;
+            const rating = parseInt(btn.dataset.rating);
+
+            fetch('{% url "rate_message" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: JSON.stringify({
+                    message_id: messageId,
+                    rating: rating
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update button styles
+                    const parentDiv = btn.closest('.flex');
+                    const buttons = parentDiv.querySelectorAll('.rate-btn');
+                    buttons.forEach(b => {
+                        b.className = b.className.replace(/bg-\w+-200 text-\w+-800/, 'text-gray-500');
+                    });
+
+                    if (rating === 2) {
+                        btn.className = btn.className.replace('text-gray-500', 'bg-green-200 text-green-800');
+                    } else {
+                        btn.className = btn.className.replace('text-gray-500', 'bg-red-200 text-red-800');
+                    }
+                }
+            })
+            .catch(error => console.error('Error rating message:', error));
+        }
+    });
+
+    // Escalation modal
+    escalationBtn.addEventListener('click', function() {
+        escalationModal.classList.remove('hidden');
+        escalationModal.classList.add('flex');
+    });
+
+    cancelEscalation.addEventListener('click', function() {
+        escalationModal.classList.add('hidden');
+        escalationModal.classList.remove('flex');
+    });
+
+    confirmEscalation.addEventListener('click', function() {
+        fetch('{% url "request_escalation" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            escalationModal.classList.add('hidden');
+            escalationModal.classList.remove('flex');
+
+            addBotMessage({
+                response: data.message || 'Your request has been escalated to our support team.',
+                error: !data.success
+            });
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            escalationModal.classList.add('hidden');
+            escalationModal.classList.remove('flex');
+            addBotMessage({
+                response: 'Error requesting escalation. Please try again.',
+                error: true
+            });
+        });
+    });
+
+    // Clear chat
+    clearChatBtn.addEventListener('click', function() {
+        if (confirm('Are you sure you want to clear this conversation?')) {
+            location.reload();
+        }
+    });
+
+    // Export chat functionality
+    document.querySelector('.export-chat').addEventListener('click', function() {
+        const messages = Array.from(chatMessages.querySelectorAll('.flex')).map(msg => {
+            const isUser = msg.classList.contains('justify-end');
+            const content = msg.querySelector('p').textContent;
+            const time = msg.querySelector('.text-xs').textContent.split('•')[0].trim();
+            return `${isUser ? 'You' : 'Assistant'} (${time}): ${content}`;
+        }).join('\n\n');
+
+        const blob = new Blob([messages], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mit-chat-${new Date().toISOString().split('T')[0]}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    // Utility function
+    function escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    // Enable Enter key to send
+    messageInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            chatForm.dispatchEvent(new Event('submit'));
+        }
+    });
+
+    // Focus input on load
+    messageInput.focus();
+});
+</script>
+{% endblock %}

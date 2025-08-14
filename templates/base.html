@@ -1,0 +1,86 @@
+{% load compress %}
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}UNILAG University Assistant{% endblock %}</title>
+    {% compress css %}
+     <link rel="stylesheet" href="{% static 'src/output.css' %}">
+    {% endcompress %}
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-mit-blue text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-graduation-cap text-2xl"></i>
+                    </div>
+                    <div class="ml-4">
+                        <h1 class="text-xl font-semibold">UNILAG University Assistant</h1>
+                        <p class="text-sm text-gray-300">Powered by AI</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    {% if user.is_authenticated %}
+                        <span class="text-sm">Hello, {{ user.first_name|default:user.username }}</span>
+                        {% if user.is_staff %}
+                            <a href="{% url 'admin_dashboard' %}"
+                               class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium transition duration-200">
+                                <i class="fas fa-chart-bar mr-2"></i>Dashboard
+                            </a>
+                        {% endif %}
+                        <a href="{% url 'logout' %}"
+                           class="bg-red-600 hover:bg-red-700 px-3 py-2 rounded-md text-sm font-medium transition duration-200">
+                            <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                        </a>
+                    {% else %}
+                        <a href="{% url 'login' %}"
+                           class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium transition duration-200">
+                            <i class="fas fa-sign-in-alt mr-2"></i>Login
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} bg-{% if message.tags == 'error' %}red{% elif message.tags == 'success' %}green{% else %}blue{% endif %}-100 border border-{% if message.tags == 'error' %}red{% elif message.tags == 'success' %}green{% else %}blue{% endif %}-400 text-{% if message.tags == 'error' %}red{% elif message.tags == 'success' %}green{% else %}blue{% endif %}-700 px-4 py-3 rounded mb-4">
+                    {{ message }}
+                    <button class="float-right font-bold text-xl leading-none" onclick="this.parentElement.remove()">&times;</button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-mit-blue text-white mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="text-center">
+                <p>&copy; 2025 UNILAG. All rights reserved.</p>
+                <p class="text-sm text-gray-300 mt-2">
+                    AI Assistant powered by UNILAG
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,31 @@
+/* Enhanced admin styles for documents */
+.field-extraction_stats_display {
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.field-actions_column .button {
+    margin-right: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+}
+
+.field-metadata_json textarea {
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.processing-status-processing {
+    color: orange;
+    font-weight: bold;
+}
+
+.processing-status-completed {
+    color: green;
+    font-weight: bold;
+}
+
+.processing-status-failed {
+    color: red;
+    font-weight: bold;
+}

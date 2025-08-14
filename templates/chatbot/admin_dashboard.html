@@ -1,0 +1,311 @@
+{% extends 'base.html' %}
+
+{% block title %}Admin Dashboard - UNILAG University Assistant{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+        <p class="text-gray-600">Monitor and manage the UNILAG University Assistant chatbot system</p>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white p-6 rounded-lg shadow">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-comments text-white"></i>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Total Conversations</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.total_conversations }}</p>
+                </div>
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+                <span class="text-green-600">↑ {{ stats.conversations_growth }}%</span> vs last week
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-message text-white"></i>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Messages Today</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.messages_today }}</p>
+                </div>
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+                Average: {{ stats.avg_daily_messages }} per day
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-yellow-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-clock text-white"></i>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Avg Response Time</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.avg_response_time|floatformat:1 }}s</p>
+                </div>
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+                Target: < 3.0s
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <div class="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-thumbs-up text-white"></i>
+                    </div>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">User Satisfaction</p>
+                    <p class="text-2xl font-semibold text-gray-900">{{ stats.user_satisfaction|floatformat:1 }}%</p>
+                </div>
+            </div>
+            <div class="mt-2 text-sm text-gray-500">
+                Based on {{ stats.total_ratings }} ratings
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <!-- Messages Over Time Chart -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Messages Over Time</h3>
+            <canvas id="messagesChart" width="400" height="200"></canvas>
+        </div>
+
+        <!-- Popular Topics -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Popular Topics</h3>
+            <div class="space-y-3">
+                {% for topic, count in popular_topics %}
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-700">{{ topic|title }}</span>
+                    <div class="flex items-center">
+                        <div class="w-32 bg-gray-200 rounded-full h-2 mr-3">
+                            <div class="bg-blue-600 h-2 rounded-full"
+                                 style="width: {{ count|mul:100|div:popular_topics.0.1 }}%"></div>
+                        </div>
+                        <span class="text-sm text-gray-500 w-8 text-right">{{ count }}</span>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="text-gray-500">No data available yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <!-- Recent Escalations -->
+        <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Recent Escalations</h3>
+                <a href="{% url 'escalation_queue' %}"
+                   class="text-blue-600 hover:text-blue-800 text-sm">
+                    View All →
+                </a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Subject
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Priority
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Created
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for ticket in recent_escalations %}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">
+                                    {{ ticket.subject|truncatechars:50 }}
+                                </div>
+                                <div class="text-sm text-gray-500">
+                                    {{ ticket.description|truncatechars:80 }}
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                    {% if ticket.status == 'new' %}bg-red-100 text-red-800
+                                    {% elif ticket.status == 'assigned' %}bg-yellow-100 text-yellow-800
+                                    {% elif ticket.status == 'in_progress' %}bg-blue-100 text-blue-800
+                                    {% else %}bg-green-100 text-green-800{% endif %}">
+                                    {{ ticket.get_status_display }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full
+                                    {% if ticket.priority == 'high' %}bg-red-100 text-red-800
+                                    {% elif ticket.priority == 'medium' %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                    {{ ticket.get_priority_display }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {{ ticket.created_at|timesince }} ago
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="px-6 py-4 text-center text-gray-500">
+                                No recent escalations
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- System Health -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">System Health</h3>
+            <div class="space-y-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">Typesense Status</span>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                        {% if system_health.typesense_status == 'healthy' %}bg-green-100 text-green-800
+                        {% else %}bg-red-100 text-red-800{% endif %}">
+                        <div class="w-2 h-2 {% if system_health.typesense_status == 'healthy' %}bg-green-400{% else %}bg-red-400{% endif %} rounded-full mr-1"></div>
+                        {{ system_health.typesense_status|title }}
+                    </span>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">Gemini API</span>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
+                        {% if system_health.gemini_status == 'healthy' %}bg-green-100 text-green-800
+                        {% else %}bg-red-100 text-red-800{% endif %}">
+                        <div class="w-2 h-2 {% if system_health.gemini_status == 'healthy' %}bg-green-400{% else %}bg-red-400{% endif %} rounded-full mr-1"></div>
+                        {{ system_health.gemini_status|title }}
+                    </span>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">Documents Indexed</span>
+                    <span class="text-sm font-semibold">{{ system_health.documents_indexed }}</span>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">Vector DB Size</span>
+                    <span class="text-sm font-semibold">{{ system_health.vector_db_size }}</span>
+                </div>
+
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-600">Last Update</span>
+                    <span class="text-sm text-gray-500">{{ system_health.last_update|timesince }} ago</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <a href="{% url 'document_management' %}"
+               class="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-200">
+                <i class="fas fa-file-upload text-2xl text-blue-600 mb-2"></i>
+                <span class="text-sm font-medium text-gray-900">Upload Documents</span>
+            </a>
+
+            <a href="{% url 'conversation_logs' %}"
+               class="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-200">
+                <i class="fas fa-comments text-2xl text-green-600 mb-2"></i>
+                <span class="text-sm font-medium text-gray-900">View Conversations</span>
+            </a>
+
+            <a href="{% url 'user_management' %}"
+               class="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-200">
+                <i class="fas fa-users text-2xl text-purple-600 mb-2"></i>
+                <span class="text-sm font-medium text-gray-900">Manage Users</span>
+            </a>
+
+            <a href="{% url 'system_settings' %}"
+               class="flex flex-col items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-200">
+                <i class="fas fa-cog text-2xl text-gray-600 mb-2"></i>
+                <span class="text-sm font-medium text-gray-900">System Settings</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Messages Over Time Chart
+    const ctx = document.getElementById('messagesChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_data.labels|safe }},
+            datasets: [{
+                label: 'Messages',
+                data: {{ chart_data.data|safe }},
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                },
+                x: {
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                }
+            }
+        }
+    });
+
+    // Auto-refresh every 30 seconds
+    setInterval(function() {
+        location.reload();
+    }, 30000);
+});
+</script>
+{% endblock %}
