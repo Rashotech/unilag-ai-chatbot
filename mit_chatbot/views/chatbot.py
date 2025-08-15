@@ -10,7 +10,7 @@ from django.views.decorators.http import require_http_methods
 import time
 
 from mit_chatbot.models import *
-from mit_chatbot.services.langchain_service import LangChainService
+# from mit_chatbot.services.langchain_service import LangChainService
 
 from datetime import timedelta
 import json
@@ -23,7 +23,7 @@ from ..services.tika_service import TikaExtractionService
 logger = logging.getLogger(__name__)
 
 # Initialize services
-langchain_service = LangChainService()
+# langchain_service = LangChainService()
 enhanced_langchain_service = EnhancedLangChainService()
 document_service = DocumentProcessingService()
 firebase_service = FirebaseStorageService()
@@ -270,118 +270,118 @@ def escalate_conversation(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-@csrf_exempt
-@require_http_methods(["POST"])
-def send_message_main(request):
-    """Handle chat messages via AJAX with Typesense conversational search"""
-    try:
-        data = json.loads(request.body)
-        user_message = data.get('message', '').strip()
-
-        if not user_message:
-            return JsonResponse({'error': 'Empty message'}, status=400)
-
-        # Record start time for response time tracking
-        start_time = time.time()
-
-        # Get or create conversation with proper session/user handling
-        conversation = _get_or_create_conversation(request, data)
-
-        # Save user message
-        user_msg = Message.objects.create(
-            conversation=conversation,
-            message_type='user',
-            content=user_message
-        )
-
-        # Use the conversation's typesense_conversation_id for continuity
-        typesense_conversation_id = conversation.metadata.get('typesense_conversation_id')
-
-        # Process with LangChain service (which uses Typesense RAG)
-        result = langchain_service.process_conversation(
-            query=user_message,
-            conversation_id=typesense_conversation_id,
-            user_id=str(request.user.id) if request.user.is_authenticated else None
-        )
-
-        # Calculate response time
-        response_time = time.time() - start_time
-
-        if result['success']:
-            # Update conversation with Typesense conversation ID for future continuity
-            new_typesense_id = result.get('conversation_id')
-            if new_typesense_id and new_typesense_id != typesense_conversation_id:
-                conversation.metadata['typesense_conversation_id'] = new_typesense_id
-                conversation.save()
-
-            # Save bot response with enhanced metadata
-            bot_message = Message.objects.create(
-                conversation=conversation,
-                message_type='bot',
-                content=result['response'],
-                metadata={
-                    'typesense_conversation_id': new_typesense_id,
-                    'escalation_needed': result.get('escalation_needed', False),
-                    'sources_count': len(result.get('sources', [])),
-                    'typesense_success': True,
-                    'search_time_ms': result.get('typesense_data', {}).get('search_time_ms'),
-                    'context_used': bool(result.get('sources'))
-                },
-                response_time=response_time
-            )
-
-            # Save source documents from Typesense results
-            _save_message_sources(bot_message, result.get('sources', []))
-
-            # Handle escalation if needed
-            if result.get('escalation_needed'):
-                _create_escalation_ticket(conversation, user_message, result['response'])
-
-            return JsonResponse({
-                'success': True,
-                'response': result['response'],
-                'message_id': str(bot_message.id),
-                'conversation_id': str(conversation.id),
-                'typesense_conversation_id': new_typesense_id,
-                'sources': _format_sources_for_frontend(result.get('sources', [])),
-                'escalation_available': result.get('escalation_needed', False),
-                'response_time': round(response_time, 2),
-                'context_used': len(result.get('sources', [])) > 0,
-                'conversation_history_available': bool(new_typesense_id)
-            })
-        else:
-            # Handle error case
-            error_response = result.get('response', 'I apologize, but I encountered an error. Please try again.')
-
-            bot_message = Message.objects.create(
-                conversation=conversation,
-                message_type='bot',
-                content=error_response,
-                metadata={
-                    'error': result.get('error', ''),
-                    'success': False,
-                    'typesense_conversation_id': result.get('conversation_id')
-                },
-                response_time=response_time
-            )
-
-            # Still create escalation for errors
-            _create_escalation_ticket(conversation, user_message, error_response, priority='high')
-
-            return JsonResponse({
-                'success': True,  # Frontend success, but with error content
-                'response': error_response,
-                'message_id': str(bot_message.id),
-                'conversation_id': str(conversation.id),
-                'error': True,
-                'escalation_available': True
-            })
-
-    except Exception as e:
-        logger.error(f"Error in send_message: {e}", exc_info=True)
-        return JsonResponse({
-            'error': f'Server error: {str(e)}'
-        }, status=500)
+# @csrf_exempt
+# @require_http_methods(["POST"])
+# def send_message_main(request):
+#     """Handle chat messages via AJAX with Typesense conversational search"""
+#     try:
+#         data = json.loads(request.body)
+#         user_message = data.get('message', '').strip()
+#
+#         if not user_message:
+#             return JsonResponse({'error': 'Empty message'}, status=400)
+#
+#         # Record start time for response time tracking
+#         start_time = time.time()
+#
+#         # Get or create conversation with proper session/user handling
+#         conversation = _get_or_create_conversation(request, data)
+#
+#         # Save user message
+#         user_msg = Message.objects.create(
+#             conversation=conversation,
+#             message_type='user',
+#             content=user_message
+#         )
+#
+#         # Use the conversation's typesense_conversation_id for continuity
+#         typesense_conversation_id = conversation.metadata.get('typesense_conversation_id')
+#
+#         # Process with LangChain service (which uses Typesense RAG)
+#         result = langchain_service.process_conversation(
+#             query=user_message,
+#             conversation_id=typesense_conversation_id,
+#             user_id=str(request.user.id) if request.user.is_authenticated else None
+#         )
+#
+#         # Calculate response time
+#         response_time = time.time() - start_time
+#
+#         if result['success']:
+#             # Update conversation with Typesense conversation ID for future continuity
+#             new_typesense_id = result.get('conversation_id')
+#             if new_typesense_id and new_typesense_id != typesense_conversation_id:
+#                 conversation.metadata['typesense_conversation_id'] = new_typesense_id
+#                 conversation.save()
+#
+#             # Save bot response with enhanced metadata
+#             bot_message = Message.objects.create(
+#                 conversation=conversation,
+#                 message_type='bot',
+#                 content=result['response'],
+#                 metadata={
+#                     'typesense_conversation_id': new_typesense_id,
+#                     'escalation_needed': result.get('escalation_needed', False),
+#                     'sources_count': len(result.get('sources', [])),
+#                     'typesense_success': True,
+#                     'search_time_ms': result.get('typesense_data', {}).get('search_time_ms'),
+#                     'context_used': bool(result.get('sources'))
+#                 },
+#                 response_time=response_time
+#             )
+#
+#             # Save source documents from Typesense results
+#             _save_message_sources(bot_message, result.get('sources', []))
+#
+#             # Handle escalation if needed
+#             if result.get('escalation_needed'):
+#                 _create_escalation_ticket(conversation, user_message, result['response'])
+#
+#             return JsonResponse({
+#                 'success': True,
+#                 'response': result['response'],
+#                 'message_id': str(bot_message.id),
+#                 'conversation_id': str(conversation.id),
+#                 'typesense_conversation_id': new_typesense_id,
+#                 'sources': _format_sources_for_frontend(result.get('sources', [])),
+#                 'escalation_available': result.get('escalation_needed', False),
+#                 'response_time': round(response_time, 2),
+#                 'context_used': len(result.get('sources', [])) > 0,
+#                 'conversation_history_available': bool(new_typesense_id)
+#             })
+#         else:
+#             # Handle error case
+#             error_response = result.get('response', 'I apologize, but I encountered an error. Please try again.')
+#
+#             bot_message = Message.objects.create(
+#                 conversation=conversation,
+#                 message_type='bot',
+#                 content=error_response,
+#                 metadata={
+#                     'error': result.get('error', ''),
+#                     'success': False,
+#                     'typesense_conversation_id': result.get('conversation_id')
+#                 },
+#                 response_time=response_time
+#             )
+#
+#             # Still create escalation for errors
+#             _create_escalation_ticket(conversation, user_message, error_response, priority='high')
+#
+#             return JsonResponse({
+#                 'success': True,  # Frontend success, but with error content
+#                 'response': error_response,
+#                 'message_id': str(bot_message.id),
+#                 'conversation_id': str(conversation.id),
+#                 'error': True,
+#                 'escalation_available': True
+#             })
+#
+#     except Exception as e:
+#         logger.error(f"Error in send_message: {e}", exc_info=True)
+#         return JsonResponse({
+#             'error': f'Server error: {str(e)}'
+#         }, status=500)
 
 
 @csrf_exempt
