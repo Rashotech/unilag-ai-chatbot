@@ -1,15 +1,11 @@
 import logging
-import os
 import re
-import uuid
 
 import requests
 import typesense
 from typing import List, Dict, Optional
 from django.conf import settings
-from sentence_transformers import SentenceTransformer
 import hashlib
-from .query_processor import QueryProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +23,6 @@ class TypesenseService:
         }
 
         self.collection_name = 'university_documents'
-        self.query_processor = QueryProcessor()
         self.conversation_collection = 'conversation_store'
         self.conversation_model = '5a660314-d51d-4f6e-89e9-5a2aa4ee5854'
 
@@ -345,255 +340,6 @@ RESPONSE STANDARDS:
             print(f"Error indexing document in Typesense: {e}")
             return False
 
-    def searchx(self, query: str, document_type: Optional[str] = None,
-               limit: int = 5) -> List[Dict]:
-        """Search for documents using hybrid search (text + vector) with POST"""
-        try:
-            # Generate query embedding
-            encoder = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
-
-            query_embedding = encoder.encode([query])[0].tolist()
-
-            search_params = {
-                'q': query,
-                'query_by': 'title,content',
-                'vector_query': f'embedding:([{",".join(map(str, query_embedding))}], k:{limit})',
-                'per_page': limit,
-                'highlight_full_fields': 'content',
-                'snippet_threshold': 15,
-                'num_typos': 2
-            }
-
-            if document_type:
-                search_params['filter_by'] = f'document_type:={document_type}'
-
-            # Use the documents.search method with the use_post=True parameter
-            results = self.client.collections[self.collection_name].documents.search(
-                search_parameters=search_params
-            )
-
-            formatted_results = []
-            for hit in results['hits']:
-                doc = hit['document']
-                formatted_results.append({
-                    'id': doc['id'],
-                    'title': doc['title'],
-                    'content': doc['content'],
-                    'document_type': doc['document_type'],
-                    'document_id': doc['document_id'],
-                    'chunk_id': doc['chunk_id'],
-                    'score': hit.get('text_match', 0),
-                    'highlights': hit.get('highlights', [])
-                })
-
-            return formatted_results
-
-        except Exception as e:
-            print(f"Error searching Typesense: {e}")
-            return []
-
-    def search(self, query: str, document_type: Optional[str] = None,
-               limit: int = 10) -> List[Dict]:
-        """
-        Performs a federated search across typesense collections using multi_search.
-        """
-        try:
-            # Process query for better search
-            processed_query = self.query_processor.process_query(query)
-            search_query = processed_query['cleaned']
-
-            all_results = []
-            encoder = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
-
-            # Generate embedding for the search query
-            query_embedding = encoder.encode([search_query])[0].tolist()
-            vector_query_param = f'embedding:([{",".join(map(str, query_embedding))}], k:{limit})'
-
-            search_requests = {
-                'searches': [
-                    {
-                        'collection': self.collection_name,
-                        'q': search_query,
-                        'per_page': limit,
-                        'query_by': 'title,content',
-                        'vector_query': vector_query_param,
-                        'sort_by': '_text_match:desc',
-                        "exclude_fields": "embedding",
-                        'num_typos': 1
-                    }
-                ]
-            }
-
-            # if document_type:
-            #     search_requests['searches'][0]['filter_by'] = f'document_type:={document_type}'
-
-            common_search_params = {}
-            multi_search_response = self.client.multi_search.perform(search_requests, common_search_params)
-
-            for single_search_result in multi_search_response['results']:
-                for hit in single_search_result['hits']:
-                    doc = hit['document']
-
-                    all_results.append({
-                        'id': doc['id'],
-                        'title': doc['title'],
-                        'content': doc['content'],
-                        'document_type': doc['document_type'],
-                        'document_id': doc['document_id'],
-                        'chunk_id': doc['chunk_id'],
-                        'score': hit.get('text_match', 0),
-                        'highlights': hit.get('highlights', [])
-                    })
-
-            return all_results
-
-            # --- Fix is here: Accessing hits from within the 'results' key ---
-            for single_search_result in multi_search_response['results']:
-                for hit in single_search_result['hits']:
-                    doc = hit['document']
-                    # Enhanced relevance calculation
-                    relevance_score = self._calculate_enhanced_relevance(
-                        query, doc['content'], hit.get('text_match', 0), processed_query
-                    )
-
-                    if relevance_score > 0.25:  # Lower threshold for better recall
-                        all_results.append({
-                            'id': doc['id'],
-                            'title': doc['title'],
-                            'content': doc['content'],
-                            'document_type': doc['document_type'],
-                            'document_id': doc['document_id'],
-                            'chunk_id': doc['chunk_id'],
-                            'score': relevance_score,
-                            'highlights': hit.get('highlights', [])
-                        })
-
-            # Remove duplicates and sort by relevance
-            seen_ids = set()
-            unique_results = []
-            for result in sorted(all_results, key=lambda x: x['score'], reverse=True):
-                if result['id'] not in seen_ids:
-                    seen_ids.add(result['id'])
-                    unique_results.append(result)
-
-            # If no good results, try fallback search
-            if not unique_results or (unique_results and unique_results[0]['score'] < 0.4):
-                fallback_results = self._fallback_search(query, document_type, limit)
-                if fallback_results:
-                    unique_results.extend(fallback_results)
-                    # Re-sort and deduplicate
-                    seen_ids = set()
-                    final_results = []
-                    for result in sorted(unique_results, key=lambda x: x['score'], reverse=True):
-                        if result['id'] not in seen_ids:
-                            seen_ids.add(result['id'])
-                            final_results.append(result)
-                    unique_results = final_results
-
-            return unique_results
-
-        except Exception as e:
-            print(f"Error performing search: {e}")
-            return []
-    
-    def _enhance_query(self, query: str) -> List[str]:
-        """Enhance query with synonyms and variations"""
-        queries = [query]
-        
-        # Add common university synonyms
-        synonyms = {
-            'lecturer': ['professor', 'instructor', 'faculty', 'teacher'],
-            'course': ['subject', 'module', 'class'],
-            'department': ['faculty', 'school'],
-            'student': ['undergraduate', 'pupil'],
-            'registration': ['enrollment', 'admission']
-        }
-        
-        query_lower = query.lower()
-        for word, syns in synonyms.items():
-            if word in query_lower:
-                for syn in syns:
-                    enhanced = query_lower.replace(word, syn)
-                    queries.append(enhanced)
-                    
-        return queries[:3]  # Limit to avoid too many searches
-    
-    def _calculate_enhanced_relevance(self, query: str, content: str, text_match_score: float, processed_query: Dict) -> float:
-        """Enhanced relevance calculation using processed query data"""
-        query_words = set(query.lower().split())
-        content_words = set(content.lower().split())
-        
-        # Basic Jaccard similarity
-        intersection = len(query_words.intersection(content_words))
-        union = len(query_words.union(content_words))
-        jaccard = intersection / union if union > 0 else 0
-        
-        # Entity matching bonus
-        entity_bonus = 0
-        for entity_type, entities in processed_query['entities'].items():
-            for entity in entities:
-                if entity.lower() in content.lower():
-                    entity_bonus += 0.1
-        
-        # Query type relevance
-        type_bonus = 0
-        query_type = processed_query['type']
-        if query_type == 'academic' and any(word in content.lower() for word in ['course', 'lecturer', 'grade', 'exam']):
-            type_bonus = 0.1
-        elif query_type == 'administrative' and any(word in content.lower() for word in ['registration', 'fee', 'admission']):
-            type_bonus = 0.1
-        
-        # Combine scores
-        final_score = (jaccard * 0.3) + (text_match_score * 0.5) + min(entity_bonus, 0.3) + type_bonus
-        
-        return min(final_score, 1.0)  # Cap at 1.0
-    
-    def _fallback_search(self, query: str, document_type: Optional[str], limit: int) -> List[Dict]:
-        """Fallback search with broader matching"""
-        try:
-            # Extract key terms from query
-            key_terms = [word for word in query.lower().split() if len(word) > 3]
-            
-            if not key_terms:
-                return []
-            
-            # Search with individual key terms
-            fallback_results = []
-            for term in key_terms[:3]:  # Limit to 3 key terms
-                search_params = {
-                    'q': term,
-                    'query_by': 'title,content',
-                    'per_page': 5,
-                    'num_typos': 2,
-                    'prefix': True
-                }
-                
-                if document_type:
-                    search_params['filter_by'] = f'document_type:={document_type}'
-                
-                results = self.client.collections[self.collection_name].documents.search(
-                    search_parameters=search_params
-                )
-                
-                for hit in results['hits']:
-                    doc = hit['document']
-                    fallback_results.append({
-                        'id': doc['id'],
-                        'title': doc['title'],
-                        'content': doc['content'],
-                        'document_type': doc['document_type'],
-                        'document_id': doc['document_id'],
-                        'chunk_id': doc['chunk_id'],
-                        'score': hit.get('text_match', 0) * 0.5,  # Lower score for fallback
-                        'highlights': hit.get('highlights', [])
-                    })
-            
-            return fallback_results[:limit]
-            
-        except Exception as e:
-            print(f"Error in fallback search: {e}")
-            return []
-
     def delete_document(self, doc_id: str) -> bool:
         """Delete all chunks of a document"""
         try:
@@ -607,15 +353,6 @@ RESPONSE STANDARDS:
         except Exception as e:
             print(f"Error deleting document from Typesense: {e}")
             return False
-
-    def get_analytics(self) -> Dict:
-        """Get search analytics"""
-        try:
-            analytics = self.client.analytics.rules.retrieve()
-            return analytics
-        except Exception as e:
-            print(f"Error getting analytics: {e}")
-            return {}
 
     def smart_chunk_text(self, text: str, chunk_size: int = 1500, overlap: int = 200) -> List[Dict]:
         """Smart chunking that preserves sentence boundaries"""

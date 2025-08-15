@@ -22,20 +22,14 @@
                         <i class="fas fa-graduation-cap text-2xl"></i>
                     </div>
                     <div class="ml-4">
-                        <h1 class="text-xl font-semibold">UNILAG University Assistant</h1>
-                        <p class="text-sm text-gray-300">Powered by AI</p>
+                        <h1 class="text-indigo-600 text-xl font-semibold">UNILAG University Assistant</h1>
+                        <p class="text-amber-300 text-sm ">Powered by AI</p>
                     </div>
                 </div>
 
                 <div class="flex items-center space-x-4">
                     {% if user.is_authenticated %}
-                        <span class="text-sm">Hello, {{ user.first_name|default:user.username }}</span>
-                        {% if user.is_staff %}
-                            <a href="{% url 'admin_dashboard' %}"
-                               class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-md text-sm font-medium transition duration-200">
-                                <i class="fas fa-chart-bar mr-2"></i>Dashboard
-                            </a>
-                        {% endif %}
+                        <span class="text-blue-700 text-sm">Hello, {{ user_context.name }}</span>
                         <a href="{% url 'logout' %}"
                            class="bg-red-600 hover:bg-red-700 px-3 py-2 rounded-md text-sm font-medium transition duration-200">
                             <i class="fas fa-sign-out-alt mr-2"></i>Logout

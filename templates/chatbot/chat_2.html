@@ -1,114 +1,10 @@
 {% extends 'base.html' %}
-{% load chat_filters %}
 
 {% block title %}Chat - UNILAG University Assistant{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto flex gap-6">
-    <!-- User Profile Sidebar -->
-    {% if user.is_authenticated and user_context %}
-    <div class="w-80 bg-white rounded-lg shadow-lg p-6 h-fit">
-        <!-- User Profile Header -->
-        <div class="text-center mb-6">
-            <div class="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-user text-white text-2xl"></i>
-            </div>
-            <h3 class="text-lg font-semibold text-gray-900">{{ user_context.name }}</h3>
-            <p class="text-sm text-gray-600">{{ user_context.student_id }}</p>
-            <span class="inline-block bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full mt-2">
-                {{ user_context.status|title }}
-            </span>
-        </div>
-
-        <!-- Academic Info -->
-        <div class="space-y-4">
-            <div class="bg-blue-50 p-4 rounded-lg">
-                <h4 class="font-semibold text-blue-900 mb-2">
-                    <i class="fas fa-graduation-cap mr-2"></i>Academic Info
-                </h4>
-                <div class="space-y-2 text-sm">
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Faculty:</span>
-                        <span class="font-medium">{{ user_context.faculty }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Department:</span>
-                        <span class="font-medium">{{ user_context.department }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Level:</span>
-                        <span class="font-medium">{{ user_context.current_level }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Entry Year:</span>
-                        <span class="font-medium">{{ user_context.entry_year|default:"N/A" }}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Academic Performance -->
-            <div class="bg-green-50 p-4 rounded-lg">
-                <h4 class="font-semibold text-green-900 mb-2">
-                    <i class="fas fa-chart-line mr-2"></i>Performance
-                </h4>
-                <div class="space-y-2 text-sm">
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">CGPA:</span>
-                        <span class="font-bold text-lg
-                            {% if user_context.cgpa >= 4.5 %}text-green-600
-                            {% elif user_context.cgpa >= 3.5 %}text-blue-600
-                            {% elif user_context.cgpa >= 2.5 %}text-yellow-600
-                            {% else %}text-red-600{% endif %}">
-                            {{ user_context.cgpa|floatformat:2 }}
-                        </span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Current Courses:</span>
-                        <span class="font-medium">{{ user_context.current_courses_count }}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Total Credits:</span>
-                        <span class="font-medium">{{ user_context.total_credits }}</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Quick Actions -->
-            <div class="bg-purple-50 p-4 rounded-lg">
-                <h4 class="font-semibold text-purple-900 mb-2">
-                    <i class="fas fa-bolt mr-2"></i>Quick Actions
-                </h4>
-                <div class="space-y-2">
-                    <button class="quick-question w-full text-left text-sm text-purple-700 hover:text-purple-900 p-2 hover:bg-purple-100 rounded"
-                            data-question="What is my current CGPA and how is it calculated?">
-                        <i class="fas fa-calculator mr-2"></i>My CGPA Details
-                    </button>
-                    <button class="quick-question w-full text-left text-sm text-purple-700 hover:text-purple-900 p-2 hover:bg-purple-100 rounded"
-                            data-question="Show me my current semester courses and results">
-                        <i class="fas fa-book mr-2"></i>Current Courses
-                    </button>
-                    <button class="quick-question w-full text-left text-sm text-purple-700 hover:text-purple-900 p-2 hover:bg-purple-100 rounded"
-                            data-question="What are my academic transcripts?">
-                        <i class="fas fa-scroll mr-2"></i>Transcripts
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Logout -->
-        <div class="mt-6 pt-6 border-t">
-            <a href="{% url 'logout' %}"
-               class="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-center block transition duration-200">
-                <i class="fas fa-sign-out-alt mr-2"></i>Logout
-            </a>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Main Chat Interface -->
-    <div class="flex-1">
-
-     <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
         <!-- Chat Header -->
         <div class="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4">
             <div class="flex items-center justify-between">
@@ -131,7 +27,7 @@
         </div>
 
         <!-- Popular Topics -->
-        {% if popular_topics and not chat_messages %}
+        {% if popular_topics and not messages %}
         <div class="bg-gray-50 border-b p-4">
             <h3 class="text-sm font-semibold text-gray-700 mb-2">Popular Topics:</h3>
             <div class="flex flex-wrap gap-2">
@@ -147,7 +43,7 @@
 
         <!-- Chat Messages -->
         <div class="h-96 overflow-y-auto p-4 space-y-4" id="chat-messages">
-            {% if not chat_messages %}
+            {% if not messages %}
             <!-- Welcome message -->
             <div class="flex items-start space-x-3">
                 <div class="flex-shrink-0">
@@ -173,7 +69,7 @@
             </div>
             {% endif %}
 
-            {% for message in chat_messages %}
+            {% for message in messages %}
                 {% if message.message_type == 'user' %}
                 <div class="flex items-start space-x-3 justify-end">
                     <div class="flex-1 max-w-md">
@@ -200,7 +96,7 @@
                     <div class="flex-1 max-w-md">
                         <div class="bg-gray-100 rounded-lg p-3">
                             <div class="prose prose-sm max-w-none">
-                                {{ message.content|format_assistant_message|safe }}
+                                {{ message.content|linebreaks }}
                             </div>
 
                             <!-- Sources -->
@@ -301,6 +197,57 @@
             </form>
         </div>
     </div>
+
+    <!-- Quick Actions -->
+    <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="font-semibold text-gray-800 mb-2">
+                <i class="fas fa-clock text-blue-600 mr-2"></i>Quick Access
+            </h3>
+            <div class="space-y-2 text-sm">
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="What are the library hours?">Library Hours</button>
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="How do I register for courses?">Course Registration</button>
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="What is the grading system?">Grading System</button>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="font-semibold text-gray-800 mb-2">
+                <i class="fas fa-info-circle text-green-600 mr-2"></i>Help Topics
+            </h3>
+            <div class="space-y-2 text-sm">
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="Tell me about academic policies">Academic Policies</button>
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="What support services are available?">Student Support</button>
+                <button class="quick-question w-full text-left text-blue-600 hover:text-blue-800"
+                        data-question="How do I contact financial aid?">Financial Aid</button>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="font-semibold text-gray-800 mb-2">
+                <i class="fas fa-tools text-purple-600 mr-2"></i>Tools
+            </h3>
+            <div class="space-y-2 text-sm">
+                {% if user.is_staff %}
+                <a href="{% url 'admin_dashboard' %}"
+                   class="block text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-chart-bar mr-1"></i>Admin Dashboard
+                </a>
+                <a href="{% url 'document_management' %}"
+                   class="block text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-upload mr-1"></i>Manage Documents
+                </a>
+                {% endif %}
+                <button class="export-chat w-full text-left text-blue-600 hover:text-blue-800">
+                    <i class="fas fa-download mr-1"></i>Export Chat
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -337,7 +284,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const cancelEscalation = document.getElementById('cancel-escalation');
     const confirmEscalation = document.getElementById('confirm-escalation');
     const clearChatBtn = document.getElementById('clear-chat-btn');
-    let conversation_id = null;
 
     // Character counter
     messageInput.addEventListener('input', function() {
@@ -390,27 +336,18 @@ document.addEventListener('DOMContentLoaded', function() {
         scrollToBottom();
 
         // Send to server
-        let payload = { message: message };
-        if(conversation_id !== null) {
-            payload = { ...payload, conversation_id: conversation_id }
-        }
-
         fetch('{% url "send_message" %}', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ message: message })
         })
         .then(response => response.json())
         .then(data => {
             // Hide typing indicator
             typingIndicator.classList.add('hidden');
-
-            if(data?.conversation_id !== null) {
-                conversation_id = data.conversation_id;
-            }
 
             if (data.success) {
                 addBotMessage(data);
@@ -505,7 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="flex-1 max-w-md">
                 <div class="${bgColor} rounded-lg p-3">
                     <div class="prose prose-sm max-w-none">
-                        <p>${formatAssistantMessage(response)}</p>
+                        <p>${response}</p>
                     </div>
                     ${sourcesHtml}
                     ${followupHtml}
@@ -534,46 +471,6 @@ document.addEventListener('DOMContentLoaded', function() {
         chatMessages.appendChild(messageDiv);
         scrollToBottom();
     }
-
-    function formatAssistantMessage(content) {
-    let formatted = content;
-
-    // Convert **bold** text
-    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-    // Convert headers
-    formatted = formatted.replace(/^### (.+)$/gm, '<h3 style="font-size:1.1em; font-weight:bold; margin:15px 0 8px 0; color:#1f2937;">$1</h3>');
-    formatted = formatted.replace(/^## (.+)$/gm, '<h2 style="font-size:1.2em; font-weight:bold; margin:18px 0 10px 0; color:#1f2937;">$1</h2>');
-
-    // Convert bullet points
-    formatted = formatted.replace(/^[\s]*\*\s*(.+)$/gm, '<li style="margin-bottom:8px;">$1</li>');
-
-    // Wrap lists
-    formatted = formatted.replace(/(<li[^>]*>.*?<\/li>\s*)+/gs, function(match) {
-        return '<ul style="margin:10px 0; padding-left:20px;">' + match + '</ul>';
-    });
-
-    // Handle source citations
-    formatted = formatted.replace(/\*$ Source:([^)]+) $ \*/g,
-        '<div style="font-size:0.85em; color:#666; font-style:italic; margin-top:10px; padding:8px; background:#f9f9f9; border-left:3px solid #ddd;">Source: $1</div>');
-
-    // Convert to paragraphs
-    const sections = formatted.split(/\n\s*\n/);
-    formatted = sections.map(section => {
-        section = section.trim();
-        if (section && !section.match(/^<(h[1-6]|ul|div|li)/i)) {
-            return '<p style="margin-bottom:12px; line-height:1.5;">' + section + '</p>';
-        }
-        return section;
-    }).join('\n\n');
-
-    // Handle remaining line breaks
-    formatted = formatted.replace(/\n(?![^<]*>)/g, '<br>');
-
-    return formatted.trim();
-}
-
-
 
     // Rating functionality
     document.addEventListener('click', function(e) {
