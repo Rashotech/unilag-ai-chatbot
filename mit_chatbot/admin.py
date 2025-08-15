@@ -328,7 +328,7 @@ class MessageAdmin(admin.ModelAdmin):
     conversation_snippet.short_description = "Conversation"
 
     def content_preview(self, obj):
-        return obj.extracted_text[:100] + "..." if len(obj.extracted_text) > 100 else obj.extracted_text
+        return obj.content[:100] + "..." if len(obj.content) > 100 else obj.content
 
     content_preview.short_description = "Content"
 
@@ -384,3 +384,512 @@ class SystemAnalyticsAdmin(admin.ModelAdmin):
         return f"{rate:.1%}"
 
     escalation_rate.short_description = "Escalation Rate"
+
+
+# admin.py
+from django.contrib import admin
+from django.utils.html import format_html
+from django.urls import reverse
+from django.utils.safestring import mark_safe
+from django.db.models import Count, Avg
+from django.contrib.admin import SimpleListFilter
+from .models import (
+    Faculty, Department, AcademicSession, Semester,
+    Course, Student, Enrollment, Result
+)
+
+
+# Custom Filters
+class CurrentSessionFilter(SimpleListFilter):
+    title = 'Session Status'
+    parameter_name = 'session_status'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('current', 'Current Session'),
+            ('previous', 'Previous Sessions'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'current':
+            return queryset.filter(is_current=True)
+        if self.value() == 'previous':
+            return queryset.filter(is_current=False)
+        return queryset
+
+
+class GradeFilter(SimpleListFilter):
+    title = 'Grade'
+    parameter_name = 'grade'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('A', 'A (Excellent)'),
+            ('B', 'B (Very Good)'),
+            ('C', 'C (Good)'),
+            ('D', 'D (Satisfactory)'),
+            ('E', 'E (Pass)'),
+            ('F', 'F (Fail)'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(grade=self.value())
+        return queryset
+
+
+class LevelFilter(SimpleListFilter):
+    title = 'Level'
+    parameter_name = 'level'
+
+    def lookups(self, request, model_admin):
+        return (
+            (100, '100 Level'),
+            (200, '200 Level'),
+            (300, '300 Level'),
+            (400, '400 Level'),
+            (500, '500 Level'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(current_level=self.value())
+        return queryset
+
+
+# Admin Classes
+@admin.register(Faculty)
+class FacultyAdmin(admin.ModelAdmin):
+    list_display = ['code', 'name', 'dean', 'established_year', 'department_count', 'student_count', 'is_active']
+    list_filter = ['is_active', 'established_year']
+    search_fields = ['code', 'name', 'dean']
+    list_editable = ['is_active']
+    readonly_fields = ['created_at']
+    ordering = ['code']
+
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('code', 'name', 'description')
+        }),
+        ('Administration', {
+            'fields': ('dean', 'established_year', 'is_active')
+        }),
+        ('System Info', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def department_count(self, obj):
+        count = obj.departments.count()
+        return format_html('<a href="{}">{}</a>', "url", count)
+
+    department_count.short_description = 'Departments'
+
+    def student_count(self, obj):
+        count = obj.students.count()
+        return format_html('<a href="{}">{}</a>', "url", count)
+
+    student_count.short_description = 'Students'
+
+
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ['code', 'name', 'faculty', 'hod', 'course_count', 'student_count', 'is_active']
+    list_filter = ['faculty', 'is_active']
+    search_fields = ['code', 'name', 'hod', 'faculty__name']
+    list_select_related = ['faculty']
+    list_editable = ['is_active']
+    readonly_fields = ['created_at']
+    ordering = ['faculty__code', 'code']
+
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('faculty', 'code', 'name', 'description')
+        }),
+        ('Administration', {
+            'fields': ('hod', 'is_active')
+        }),
+        ('System Info', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def course_count(self, obj):
+        count = obj.courses.count()
+        # url = reverse('admin:your_app_course_changelist') + f'?department__id__exact={obj.id}'
+        return format_html('<a href="{}">{}</a>', "url", count)
+
+    course_count.short_description = 'Courses'
+
+    def student_count(self, obj):
+        count = obj.students.count()
+        # url = reverse('admin:your_app_student_changelist') + f'?department__id__exact={obj.id}'
+        return format_html('<a href="{}">{}</a>', "url", count)
+
+    student_count.short_description = 'Students'
+
+
+@admin.register(AcademicSession)
+class AcademicSessionAdmin(admin.ModelAdmin):
+    list_display = ['name', 'start_date', 'end_date', 'is_current', 'is_current_badge', 'student_count', 'created_at']
+    list_filter = ['is_current', CurrentSessionFilter]
+    search_fields = ['name']
+    list_editable = ['is_current']
+    ordering = ['-start_date']
+    date_hierarchy = 'start_date'
+
+    fieldsets = (
+        ('Session Information', {
+            'fields': ('name', 'start_date', 'end_date', 'is_current')
+        }),
+        ('System Info', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def is_current_badge(self, obj):
+        if obj.is_current:
+            return format_html('<span style="color: green; font-weight: bold;">✓ Current</span>')
+        return format_html('<span style="color: gray;">-</span>')
+
+    is_current_badge.short_description = 'Status'
+
+    def student_count(self, obj):
+        count = obj.current_students.count()
+        return count
+
+    student_count.short_description = 'Active Students'
+
+
+@admin.register(Semester)
+class SemesterAdmin(admin.ModelAdmin):
+    list_display = ['session', 'semester_display', 'start_date', 'end_date', 'is_current_badge', 'enrollment_count']
+    list_filter = ['session', 'semester_number', 'is_current']
+    search_fields = ['session__name']
+    list_select_related = ['session']
+    ordering = ['-session__start_date', 'semester_number']
+    date_hierarchy = 'start_date'
+
+    fieldsets = (
+        ('Semester Information', {
+            'fields': ('session', 'semester_number', 'start_date', 'end_date', 'is_current')
+        }),
+        ('System Info', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def semester_display(self, obj):
+        return obj.get_semester_number_display()
+
+    semester_display.short_description = 'Semester'
+
+    def is_current_badge(self, obj):
+        if obj.is_current:
+            return format_html('<span style="color: green; font-weight: bold;">✓ Current</span>')
+        return format_html('<span style="color: gray;">-</span>')
+
+    is_current_badge.short_description = 'Status'
+
+    def enrollment_count(self, obj):
+        count = obj.enrollments.count()
+        return count
+
+    enrollment_count.short_description = 'Enrollments'
+
+
+@admin.register(Course)
+class CourseAdmin(admin.ModelAdmin):
+    list_display = ['code', 'title', 'department', 'level', 'credits', 'course_type', 'lecturer', 'has_practical',
+                    'enrollment_count', 'is_active']
+    list_filter = ['department__faculty', 'department', 'level', 'course_type', 'has_practical', 'is_active']
+    search_fields = ['code', 'title', 'lecturer', 'department__name']
+    list_select_related = ['department', 'department__faculty']
+    list_editable = ['is_active', 'has_practical']
+    ordering = ['code']
+    filter_horizontal = ['prerequisites']
+
+    fieldsets = (
+        ('Course Information', {
+            'fields': ('code', 'title', 'description', 'department')
+        }),
+        ('Academic Details', {
+            'fields': ('level', 'credits', 'course_type', 'prerequisites')
+        }),
+        ('Teaching Info', {
+            'fields': ('lecturer', 'has_practical')
+        }),
+        ('Status', {
+            'fields': ('is_active',)
+        }),
+        ('System Info', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def enrollment_count(self, obj):
+        count = obj.enrollments.count()
+        # url = reverse('admin:your_app_enrollment_changelist') + f'?course__id__exact={obj.id}'
+        return format_html('<a href="{}">{}</a>', "url", count)
+
+    enrollment_count.short_description = 'Enrollments'
+
+
+class EnrollmentInline(admin.TabularInline):
+    model = Enrollment
+    extra = 0
+    fields = ['course', 'semester', 'status', 'enrollment_date']
+    readonly_fields = ['enrollment_date']
+
+
+class ResultInline(admin.TabularInline):
+    model = Result
+    extra = 0
+    fields = ['course', 'semester', 'ca_score', 'exam_score', 'total_score', 'grade', 'grade_point', 'status']
+    readonly_fields = ['total_score', 'grade', 'grade_point']
+
+
+@admin.register(Student)
+class StudentAdmin(admin.ModelAdmin):
+    list_display = [
+        'student_id', 'full_name_display', 'department', 'current_level',
+        'current_cgpa_display', 'academic_standing', 'status', 'graduation_status'
+    ]
+    list_filter = [
+        'faculty', 'department', LevelFilter, 'mode_of_entry',
+        'student_type', 'academic_standing', 'status', 'graduation_status'
+    ]
+    search_fields = [
+        'student_id', 'user__first_name', 'user__last_name',
+        'user__email', 'phone_number'
+    ]
+    list_select_related = ['user', 'faculty', 'department', 'current_session', 'entry_session']
+    ordering = ['student_id']
+    readonly_fields = [
+        'created_at', 'updated_at', 'current_cgpa', 'total_credits_earned'
+    ]
+
+    inlines = [EnrollmentInline, ResultInline]
+
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('user', 'student_id', 'faculty', 'department')
+        }),
+        ('Academic Information', {
+            'fields': (
+                'current_level', 'entry_session', 'current_session',
+                'mode_of_entry', 'student_type'
+            )
+        }),
+        ('Personal Information', {
+            'fields': (
+                'middle_name', 'date_of_birth', 'gender',
+                'state_of_origin', 'address', 'phone_number'
+            ),
+            'classes': ('collapse',)
+        }),
+        ('Guardian Information', {
+            'fields': ('guardian_name', 'guardian_phone', 'guardian_relationship'),
+            'classes': ('collapse',)
+        }),
+        ('Academic Performance', {
+            'fields': (
+                'current_cgpa', 'total_credits_earned', 'academic_standing'
+            )
+        }),
+        ('Status Information', {
+            'fields': (
+                'status', 'graduation_status', 'graduation_date', 'class_of_degree'
+            )
+        }),
+        ('System Information', {
+            'fields': ('is_active', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def full_name_display(self, obj):
+        return obj.full_name
+
+    full_name_display.short_description = 'Full Name'
+
+    def current_cgpa_display(self, obj):
+        cgpa = float(obj.current_cgpa)
+        if cgpa >= 4.5:
+            color = 'green'
+        elif cgpa >= 3.5:
+            color = 'orange'
+        elif cgpa >= 2.5:
+            color = 'blue'
+        else:
+            color = 'red'
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{:.2f}</span>',
+            color, cgpa
+        )
+
+    current_cgpa_display.short_description = 'CGPA'
+
+    actions = ['calculate_cgpa_for_selected', 'promote_students']
+
+    def calculate_cgpa_for_selected(self, request, queryset):
+        count = 0
+        for student in queryset:
+            student.calculate_cgpa()
+            count += 1
+        self.message_user(request, f'CGPA calculated for {count} students.')
+
+    calculate_cgpa_for_selected.short_description = 'Recalculate CGPA for selected students'
+
+    def promote_students(self, request, queryset):
+        count = 0
+        for student in queryset:
+            if student.current_level < 500:
+                student.current_level += 100
+                student.save()
+                count += 1
+        self.message_user(request, f'{count} students promoted to next level.')
+
+    promote_students.short_description = 'Promote selected students to next level'
+
+
+@admin.register(Enrollment)
+class EnrollmentAdmin(admin.ModelAdmin):
+    list_display = [
+        'student_id_display', 'student_name', 'course_code', 'course_title',
+        'semester', 'status', 'enrollment_date'
+    ]
+    list_filter = [
+        'semester__session', 'semester', 'course__department',
+        'course__level', 'status'
+    ]
+    search_fields = [
+        'student__student_id', 'student__user__first_name',
+        'student__user__last_name', 'course__code', 'course__title'
+    ]
+    list_select_related = [
+        'student', 'student__user', 'course', 'semester', 'semester__session'
+    ]
+    ordering = ['-semester__session__start_date', 'student__student_id']
+    date_hierarchy = 'enrollment_date'
+
+    def student_id_display(self, obj):
+        # url = reverse('admin:your_app_student_change', args=[obj.student.id])
+        return format_html('<a href="{}">{}</a>', "url", obj.student.student_id)
+
+    student_id_display.short_description = 'Student ID'
+
+    def student_name(self, obj):
+        return obj.student.full_name
+
+    student_name.short_description = 'Student Name'
+
+    def course_code(self, obj):
+        return obj.course.code
+
+    course_code.short_description = 'Course Code'
+
+    def course_title(self, obj):
+        return obj.course.title
+
+    course_title.short_description = 'Course Title'
+
+
+@admin.register(Result)
+class ResultAdmin(admin.ModelAdmin):
+    list_display = [
+        'student_id_display', 'student_name', 'course_code',
+        'semester', 'ca_score', 'exam_score', 'total_score',
+        'grade_display', 'grade_point', 'status', 'is_final'
+    ]
+    list_filter = [
+        'semester__session', 'semester', 'course__department',
+        GradeFilter, 'status', 'is_final'
+    ]
+    search_fields = [
+        'student__student_id', 'student__user__first_name',
+        'student__user__last_name', 'course__code', 'course__title'
+    ]
+    list_select_related = [
+        'student', 'student__user', 'course', 'semester', 'semester__session'
+    ]
+    list_editable = ['ca_score', 'exam_score', 'is_final']
+    ordering = ['-semester__session__start_date', 'student__student_id', 'course__code']
+    readonly_fields = ['total_score', 'grade', 'grade_point', 'credit_earned', 'date_recorded']
+
+    fieldsets = (
+        ('Result Information', {
+            'fields': ('student', 'course', 'semester')
+        }),
+        ('Scores', {
+            'fields': ('ca_score', 'exam_score', 'total_score')
+        }),
+        ('Grading', {
+            'fields': ('grade', 'grade_point', 'credit_earned')
+        }),
+        ('Status', {
+            'fields': ('status', 'is_final', 'recorded_by')
+        }),
+        ('System Info', {
+            'fields': ('date_recorded', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def student_id_display(self, obj):
+        # url = reverse('admin:your_app_student_change', args=[obj.student.id])
+        return format_html('<a href="{}">{}</a>', "url", obj.student.student_id)
+
+    student_id_display.short_description = 'Student ID'
+
+    def student_name(self, obj):
+        return obj.student.full_name
+
+    student_name.short_description = 'Student Name'
+
+    def course_code(self, obj):
+        return obj.course.code
+
+    course_code.short_description = 'Course Code'
+
+    def grade_display(self, obj):
+        grade_colors = {
+            'A': 'green', 'B': 'blue', 'C': 'orange',
+            'D': 'goldenrod', 'E': 'purple', 'F': 'red'
+        }
+        color = grade_colors.get(obj.grade, 'black')
+        return format_html(
+            '<span style="color: {}; font-weight: bold;">{}</span>',
+            color, obj.grade
+        )
+
+    grade_display.short_description = 'Grade'
+
+    actions = ['finalize_results', 'recalculate_grades']
+
+    def finalize_results(self, request, queryset):
+        count = queryset.update(is_final=True)
+        self.message_user(request, f'{count} results finalized.')
+
+    finalize_results.short_description = 'Mark selected results as final'
+
+    def recalculate_grades(self, request, queryset):
+        count = 0
+        for result in queryset:
+            result.save()  # This will trigger the grade recalculation
+            count += 1
+        self.message_user(request, f'Grades recalculated for {count} results.')
+
+    recalculate_grades.short_description = 'Recalculate grades for selected results'
+
+
+# Custom Admin Site Configuration
+admin.site.site_header = "UNILAG Academic Management System"
+admin.site.site_title = "UNILAG Admin"
+admin.site.index_title = "Academic Management Dashboard"
+
