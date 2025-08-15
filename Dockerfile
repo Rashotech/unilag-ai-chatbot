@@ -42,4 +42,4 @@ RUN npx tailwindcss -i ./static/src/input.css -o ./static/src/output.css
 EXPOSE 8029
 
 # Run with gunicorn
-CMD ["sh", "-c", "PYTHONPATH=/code gunicorn --bind 0.0.0.0:8029 --workers 3 --access-logfile - --error-logfile - --log-level info MIT811.wsgi:application"]
+CMD ["sh", "-c", "PYTHONPATH=/code gunicorn --bind 0.0.0.0:8029 --workers 3 --access-logfile - --error-logfile - --log-level info MIT811.asgi:application -k uvicorn.workers.UvicornWorker --timeout 300"]
