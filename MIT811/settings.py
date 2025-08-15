@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import os
 from pathlib import Path
@@ -208,17 +209,43 @@ TIKA_SERVER_URL = os.getenv('TIKA_SERVER_URL', 'http://localhost:9998')
 # Firebase Configuration
 FIREBASE_PROJECT_ID = os.getenv('FIREBASE_PROJECT_ID')
 FIREBASE_STORAGE_BUCKET = os.getenv('FIREBASE_STORAGE_BUCKET')
-FIREBASE_CREDENTIALS_PATH = os.getenv('FIREBASE_CREDENTIALS_PATH')
+# FIREBASE_CREDENTIALS_PATH = os.getenv('FIREBASE_CREDENTIALS_PATH')
 
 # Initialize Firebase Admin SDK
-if FIREBASE_CREDENTIALS_PATH and os.path.exists(FIREBASE_CREDENTIALS_PATH):
+# if FIREBASE_CREDENTIALS_PATH and os.path.exists(FIREBASE_CREDENTIALS_PATH):
+#     try:
+#         cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
+#         firebase_admin.initialize_app(cred, {
+#             'storageBucket': FIREBASE_STORAGE_BUCKET
+#         })
+#     except Exception as e:
+#         print(f"Error initializing Firebase: {e}")
+
+FIREBASE_CREDENTIALS_JSON = os.getenv('FIREBASE_CREDENTIALS_JSON')
+
+# Initialize Firebase Admin SDK
+if FIREBASE_CREDENTIALS_JSON:
     try:
-        cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
+        # Decode the JSON string from the environment variable
+        cred_dict = json.loads(FIREBASE_CREDENTIALS_JSON)
+
+        # Replace escaped newlines in the private_key value
+        private_key = cred_dict.get('private_key')
+        if private_key:
+            cred_dict['private_key'] = private_key.replace('\\n', '\n')
+
+        cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred, {
             'storageBucket': FIREBASE_STORAGE_BUCKET
         })
+        print("Firebase initialized successfully from environment variable.")
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON from FIREBASE_CREDENTIALS_JSON: {e}")
     except Exception as e:
-        print(f"Error initializing Firebase: {e}")
+        print(f"Error initializing Firebase with credentials from env var: {e}")
+else:
+    print("FIREBASE_CREDENTIALS_JSON environment variable not found.")
+
 
 # File upload settings
 MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 52428800))  # 50MB

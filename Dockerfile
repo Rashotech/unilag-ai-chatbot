@@ -34,9 +34,9 @@ RUN npm install -D tailwindcss
 # Build Tailwind CSS
 RUN npx tailwindcss -i ./static/src/input.css -o ./static/src/output.css
 
-COPY entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh
-ENTRYPOINT ["entrypoint.sh"]
+#COPY entrypoint.sh /usr/local/bin/
+#RUN chmod +x /usr/local/bin/entrypoint.sh
+#ENTRYPOINT ["entrypoint.sh"]
 
 # Expose the port Gunicorn will run on
 EXPOSE 8000
