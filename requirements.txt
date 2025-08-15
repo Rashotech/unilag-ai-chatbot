@@ -130,3 +130,5 @@ xxhash==3.5.0
 yarl==1.20.1
 zstandard==0.23.0
 gunicorn==23.0.0
+uvicorn==0.35.0
+
