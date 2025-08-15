@@ -1,40 +1,45 @@
-FROM debian:bookworm-slim
+# Use the official Python image from the Docker Hub
+FROM python:3.12-slim
 
-# Set the working directory inside the container
-WORKDIR /app
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-# Arguments needed at build-time, to be provided by Coolify
-ARG DEBUG
-ARG SECRET_KEY
-ARG DATABASE_URL
+# Set the working directory
+WORKDIR /code
 
-# Install system dependencies needed by our app
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl wget \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies
+RUN apt-get update \
+    && apt-get install -y build-essential libpq-dev curl poppler-utils libmagic1 \
+    && apt-get clean
 
-# Install uv, the fast Python package manager
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:${PATH}"
+# Install Node.js and npm
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs
 
-# Copy only the dependency definitions first to leverage Docker's layer caching
-COPY pyproject.toml uv.lock .python-version ./
+# Install Python dependencies
+COPY requirements.txt /code/
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
-# Install Python dependencies for production
-RUN uv sync --no-group dev --group prod
+# Install npm dependencies
+COPY package.json package-lock.json* /code/
 
-# Copy the rest of the application code into the container
-COPY . .
+# Copy the Django project code into the container
+COPY . /code/
 
-# Collect the static files
-RUN uv run --no-sync ./manage.py collectstatic --noinput
+# Install Tailwind CSS
+RUN npm install -D tailwindcss
 
-# Migrate the database
-RUN uv run --no-sync ./manage.py migrate
+# Build Tailwind CSS
+RUN npx tailwindcss -i ./static/src/input.css -o ./static/src/output.css
+
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["entrypoint.sh"]
 
 # Expose the port Gunicorn will run on
 EXPOSE 8000
 
 # Run with gunicorn
-CMD ["uv", "run", "--no-sync", "gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "config.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "config.wsgi:application"]
