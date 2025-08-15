@@ -39,7 +39,7 @@ RUN npx tailwindcss -i ./static/src/input.css -o ./static/src/output.css
 #ENTRYPOINT ["entrypoint.sh"]
 
 # Expose the port Gunicorn will run on
-EXPOSE 8000
+EXPOSE 8029
 
 # Run with gunicorn
-CMD ["sh", "-c", "PYTHONPATH=/code gunicorn --bind 0.0.0.0:8000 --workers 3 --access-logfile - --error-logfile - --log-level info MIT811.wsgi:application"]
+CMD ["sh", "-c", "PYTHONPATH=/code gunicorn --bind 0.0.0.0:8029 --workers 3 --access-logfile - --error-logfile - --log-level info MIT811.wsgi:application"]
