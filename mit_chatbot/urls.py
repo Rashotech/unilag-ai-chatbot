@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('login/', views.custom_login, name='login'),
     path('logout/', views.custom_logout, name='logout'),
+    path('admin/chatbot/document/<uuid:document_id>/download/', views.download_document, name='download_document'),
 
     # Chat
     path('', views.chat_view, name='chat_interface'),

@@ -1,7 +1,8 @@
 import logging
 
+from django.contrib.admin.views.decorators import staff_member_required
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse
+from django.http import JsonResponse, Http404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, logout
 from django.contrib import messages
@@ -536,26 +537,32 @@ def _create_new_conversation(request):
 
 
 def _save_message_sources(message, sources):
-    """Save source documents from Typesense results"""
-    for i, source in enumerate(sources[:5]):  # Limit to top 5 sources
+    """Save source documents from Typesense results using bulk_create."""
+    message_sources_to_create = []
+    source_docs_map = {
+        doc.id: doc for doc in Document.objects.filter(id__in=[s.get('document_id') for s in sources])
+    }
+
+    for source in sources[:5]:  # Limit to top 5 sources
+        document_id = source.get('document_id')
+        if document_id in source_docs_map:
+            document = source_docs_map[document_id]
+            message_sources_to_create.append(
+                MessageSource(
+                    message=message,
+                    document=document,
+                    relevance_score=source.get('relevance_score', 0.0),
+                    chunk_content=source.get('content_snippet', '')[:1000],
+                )
+            )
+        else:
+            logger.warning(f"Document {document_id} not found in database")
+
+    if message_sources_to_create:
         try:
-            # Try to find the document by ID
-            document_id = source.get('document_id')
-            if document_id:
-                try:
-                    document = Document.objects.get(id=document_id)
-                    MessageSource.objects.create(
-                        message=message,
-                        document=document,
-                        relevance_score=source.get('relevance_score', 0.0),
-                        chunk_content=source.get('content_snippet', '')[:1000],
-                    )
-                except Document.DoesNotExist:
-                    logger.warning(f"Document {document_id} not found in database")
-                    continue
+            MessageSource.objects.bulk_create(message_sources_to_create)
         except Exception as e:
-            logger.error(f"Error saving message source: {e}")
-            continue
+            logger.error(f"Error bulk saving message sources: {e}")
 
 
 def _create_escalation_ticket(conversation, user_message, bot_response, priority='medium'):
@@ -674,3 +681,38 @@ def custom_logout(request):
     messages.success(request, 'You have been logged out successfully.')
     return redirect('login')
 
+
+@staff_member_required
+def download_document(request, doc_id):
+    """Download document from Firebase"""
+    try:
+        document = get_object_or_404(Document, id=doc_id)
+
+        if not document.firebase_path:
+            raise Http404("Document file not found")
+
+        # Generate signed URL for download
+        signed_url = firebase_service.generate_signed_url(
+            document.firebase_path,
+            expiration_minutes=10
+        )
+
+        if signed_url:
+            return redirect(signed_url)
+        else:
+            # Fallback: direct download through our server
+            file_content = firebase_service.download_file(document.firebase_path)
+            if not file_content:
+                raise Http404("Document file not found")
+
+            from django.http import HttpResponse
+            response = HttpResponse(
+                file_content,
+                content_type=document.content_type or 'application/octet-stream'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{document.title}"'
+            return response
+
+    except Exception as e:
+        logger.error(f"Document download error: {e}")
+        raise Http404("Document not found or unavailable")
