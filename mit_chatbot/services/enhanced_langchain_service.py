@@ -1,6 +1,7 @@
 import json
 import logging
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, TypedDict, Annotated, Sequence, Optional
 import operator
 
@@ -64,6 +65,7 @@ class EnhancedLangChainService:
     def __init__(self):
         self.typesense = TypesenseService()
         self.mcp = MCPDatabaseService()
+        self.executor = ThreadPoolExecutor(max_workers=2)
         self.llm_base = init_chat_model("gpt-5-mini", model_provider="openai")
 
         self.authenticated_prompt = """
@@ -158,6 +160,9 @@ class EnhancedLangChainService:
 
             # Always use RAG for general information
             needs_rag = True
+
+            if is_authenticated and needs_tools and needs_rag:
+                logger.info("🚀 Query eligible for parallel execution")
 
             return {
                 **state,
@@ -344,16 +349,48 @@ class EnhancedLangChainService:
             }
 
         def route_after_analysis(state: ConversationState) -> str:
-            """Route based on what resources are needed"""
+            """Route based on authentication and query needs"""
+            is_authenticated = state.get("is_authenticated", False)
             needs_tools = state.get("needs_tools", False)
             needs_rag = state.get("needs_rag", True)
-            is_authenticated = state.get("is_authenticated", False)
 
-            # Sequential processing to avoid concurrent state updates
-            if needs_tools and is_authenticated:
+            if is_authenticated and needs_tools and needs_rag:
+                return "parallel_execution"  # ← CHANGE THIS LINE
+            elif needs_tools and is_authenticated:
                 return "execute_tools"
-            else:
+            elif needs_rag:
                 return "typesense_search"
+            else:
+                return "synthesize_response"
+
+        def parallel_execution(state: ConversationState) -> ConversationState:
+            """Execute MCP tools and RAG search in parallel"""
+            logger.info("🚀 Executing MCP tools and RAG search in parallel")
+
+            # Use existing functions in parallel
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                # Submit both tasks
+                mcp_future = executor.submit(execute_tools, state)
+                rag_future = executor.submit(typesense_rag_search, state)
+
+                try:
+                    # Get results (with timeout protection)
+                    mcp_state = mcp_future.result(timeout=100)
+                    rag_state = rag_future.result(timeout=100)
+
+                    # Merge results into state
+                    state['mcp_results'] = mcp_state.get('mcp_results', [])
+                    state['typesense_result'] = rag_state.get('typesense_result', {})
+                    state['tools_used'].extend(mcp_state.get('tools_used', []))
+                    state['sources'].extend(rag_state.get('sources', []))
+
+                except Exception as e:
+                    logger.error(f"Parallel execution error: {e}")
+                    # Fallback to sequential if parallel fails
+                    state =execute_tools(state)
+                    state = typesense_rag_search(state)
+
+            return state
 
         def route_after_tools(state: ConversationState) -> str:
             """Route after tool execution"""
@@ -366,40 +403,35 @@ class EnhancedLangChainService:
         # Build the graph
         graph = StateGraph(ConversationState)
 
-        # Add nodes
+        # Add nodes (ADD this one line)
         graph.add_node("analyze_query", analyze_query)
-        graph.add_node("typesense_search", typesense_rag_search)
         graph.add_node("execute_tools", execute_tools)
-        graph.add_node("synthesize", synthesize_response)
+        graph.add_node("typesense_search", typesense_rag_search)
+        graph.add_node("parallel_execution", parallel_execution)  # ← ADD THIS
+        graph.add_node("synthesize_response", synthesize_response)
         graph.add_node("check_escalation", check_escalation)
 
-        # Define conditional routing
+        # Set entry point
+        graph.set_entry_point("analyze_query")
+
+        # Routing (ADD parallel_execution to the mapping)
         graph.add_conditional_edges(
             "analyze_query",
             route_after_analysis,
             {
+                "execute_tools": "execute_tools",
                 "typesense_search": "typesense_search",
-                "execute_tools": "execute_tools"
+                "parallel_execution": "parallel_execution",  # ← ADD THIS LINE
+                "synthesize_response": "synthesize_response"
             }
         )
 
-        # Route after tools execution
-        graph.add_conditional_edges(
-            "execute_tools",
-            route_after_tools,
-            {
-                "typesense_search": "typesense_search",
-                "synthesize": "synthesize"
-            }
-        )
-
-        # All paths lead to synthesis
-        graph.add_edge("typesense_search", "synthesize")
-        graph.add_edge("synthesize", "check_escalation")
+        # Edges (ADD this one line)
+        graph.add_edge("execute_tools", "synthesize_response")
+        graph.add_edge("typesense_search", "synthesize_response")
+        graph.add_edge("parallel_execution", "synthesize_response")  # ← ADD THIS
+        graph.add_edge("synthesize_response", "check_escalation")
         graph.add_edge("check_escalation", END)
-
-        # Set entry point
-        graph.set_entry_point("analyze_query")
 
         return graph.compile()
 
