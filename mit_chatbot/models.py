@@ -42,7 +42,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=150, blank=True)
     user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='student')
     department = models.CharField(max_length=100, blank=True)
-    user_id = models.CharField(max_length=30, unique=True, blank=True)
+    user_id = models.CharField(max_length=50, blank=True)
     phone_number = models.CharField(max_length=20, blank=True)
 
     # Django required fields

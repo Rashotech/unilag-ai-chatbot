@@ -69,67 +69,25 @@ TYPESENSE_PORT=8108
 
 # Database Configuration
 DATABASE_URL=postgresql://user:password@localhost:5432/unilag_db
-
-# MCP Configuration
-MCP_SERVER_URL=http://localhost:3000
 ```
 
 ### Running the Application
 
 ```bash
-# Start the service
-python -m uvicorn main:app --reload
+# Create and activate a new virtual environment:
+python -m venv env
+source env/bin/activate
 
-# Or run directly
-python run.py
+# Install the project dependencies
+pip install -r requirements.txt
+
+# Create the database tables
+python manage.py migrate
+
+#Run the development server
+python manage.py runserver
 ```
 
-## 📖 Usage Examples
-
-### For General Users (No Authentication Required)
-
-```python
-from services.langchain_service import EnhancedLangChainService
-
-service = EnhancedLangChainService()
-
-# General university information
-response = service.process_query(
-    query="What are UNILAG admission requirements?",
-    user_context={}
-)
-
-# Course searches available to everyone
-response = service.process_query(
-    query="Find computer science courses for 300 level",
-    user_context={}
-)
-```
-
-### For Authenticated Students
-
-```python
-# Personal academic queries
-response = service.process_query(
-    query="What's my current CGPA?",
-    user_context={
-        "student_id": "20240001",
-        "authenticated": True,
-        "session": "2023/2024"
-    }
-)
-
-# Personalized course recommendations
-response = service.process_query(
-    query="What courses should I register for next semester?",
-    user_context={
-        "student_id": "20240001",
-        "authenticated": True,
-        "level": 300,
-        "department": "Computer Science"
-    }
-)
-```
 
 ## 🔧 Core Components
 
@@ -203,24 +161,6 @@ graph TD
 - **Cookie Auth**: Secure student authentication
 - **Role-Based Access**: Different permissions for students, staff, and admin
 - **Data Privacy**: Personal information only accessible to authenticated users
-
-### Error Handling
-```python
-# Graceful degradation
-try:
-    mcp_result = self.mcp.execute_tool("get_student_results", params)
-except Exception as e:
-    logger.error(f"MCP tool error: {e}")
-    # Falls back to general response
-    return self._handle_with_rag_only(state)
-```
-
-## 📈 Performance Optimizations
-
-### Caching Strategy
-- **Redis Caching**: Frequently accessed data
-- **Query Result Caching**: Expensive database operations
-- **Session Management**: Efficient context handling
 
 
 *Empowering students with AI-driven academic assistance*

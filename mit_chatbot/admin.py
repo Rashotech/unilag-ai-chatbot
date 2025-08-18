@@ -161,18 +161,22 @@ class DocumentAdmin(admin.ModelAdmin):
                         # Update search index
                         search_service.index_document(obj)
 
+                        obj.save()
+
                         messages.success(request, f"Document '{obj.title}' uploaded and processed successfully!")
                     else:
                         obj.error_message = result.get('error', 'Unknown extraction error')
                         obj.processing_status = 'failed'
+                        obj.save()
+
                         messages.error(request, f"Content extraction failed: {obj.error_message}")
                 else:
                     # firebase_path contains error message when firebase_success is False
                     obj.error_message = firebase_path
                     obj.processing_status = 'failed'
-                    messages.error(request, f"File upload failed: {obj.error_message}")
+                    obj.save()
 
-                obj.save()
+                    messages.error(request, f"File upload failed: {obj.error_message}")
 
             except Exception as e:
                 obj.processing_status = 'failed'
