@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'mit_chatbot.apps.MitChatbotConfig',
     'compressor',
+    'django_admin_logs'
 ]
 
 MIDDLEWARE = [
@@ -303,4 +304,4 @@ LOGIN_REDIRECT_URL = '/chat/'
 LOGOUT_REDIRECT_URL = '/login/'
 
 AUTH_USER_MODEL = "mit_chatbot.CustomUser"
-
+DJANGO_ADMIN_LOGS_ENABLED = False
